@@ -1,0 +1,1088 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+	<title>Mine Sweeping</title>
+	<style>
+		:root{
+			--bg:#0f1115;
+			--bg-grad: radial-gradient(1200px 800px at 10% -10%,#182031 0%,#0f1115 50%) fixed;
+			--panel:#161922;
+			--panel-2:#121621;
+			--panel-3:#10131a;
+			--accent:#2dd4bf;
+			--text:#e5e7eb;
+			--muted:#9aa3b2;
+			--danger:#ef4444;
+			--warn:#f59e0b;
+			--ok:#34d399;
+			--grid-gap:4px;
+			--cell-size:40px;
+			--radius:16px;
+			--radius-sm:12px;
+			--shadow:0 10px 28px rgba(0,0,0,.40), inset 0 1px 0 rgba(255,255,255,.04);
+			--border:1px solid rgba(255,255,255,.06);
+			--border-strong:1px solid rgba(255,255,255,.10);
+			--ring:0 0 0 10px rgba(45,212,191,.12);
+			--ring-warn:0 0 0 10px rgba(245,158,11,.12);
+		}
+		*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+		html,body{height:100%}
+		body{
+			margin:0;
+			background:var(--bg-grad);
+			color:var(--text);
+			font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
+			display:flex;flex-direction:column;align-items:center;gap:14px;
+			padding:env(safe-area-inset-top) env(safe-area-inset-right) calc(env(safe-area-inset-bottom) + 10px) env(safe-area-inset-left);
+		}
+		header{
+			margin-top:8px;
+			display:flex;align-items:center;justify-content:space-between;gap:10px; width:min(900px,94vw);
+		}
+		.brand{
+			display:flex;align-items:center;gap:12px;
+			padding:12px 16px;background:linear-gradient(180deg,#1b2030 0%,#121621 100%);border-radius:var(--radius);
+			box-shadow:var(--shadow); border:var(--border);
+		}
+		.brand .logo{width:30px;height:30px;border-radius:10px;background:conic-gradient(from 180deg,#2dd4bf,#60a5fa,#a78bfa,#2dd4bf);box-shadow:inset 0 0 18px rgba(255,255,255,.35)}
+		.brand .title{font-weight:900;letter-spacing:.3px;font-size:18px}
+		.controls{
+			display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:flex-end;flex:1;
+		}
+		.select, .button, .badge{
+			background:linear-gradient(180deg,#1b2030 0%,#121621 100%);
+			color:var(--text); border:var(--border);
+			border-radius:var(--radius-sm); padding:12px 14px; font-size:14px;
+			box-shadow:var(--shadow);
+		}
+		.button{cursor:pointer;transition:transform .08s ease, background .2s, box-shadow .15s}
+		.button:active{transform:translateY(1px) scale(.98)}
+		.button.primary{background:linear-gradient(180deg,#1f6f63 0%,#134e46 100%); color:#eafff9; border-color:rgba(45,212,191,.5)}
+		.button.primary:hover{box-shadow:var(--ring)}
+		.button.warn{background:linear-gradient(180deg,#6b3a12 0%,#5b2f0c 100%); color:#fff1e0; border-color:rgba(245,158,11,.5)}
+		.button.warn:hover{box-shadow:var(--ring-warn)}
+		.button.ghost{background:linear-gradient(180deg,#171b27 0%,#0f131c 100%)}
+		.badge{font-weight:800}
+		.badge.mode{background:linear-gradient(180deg,#182031 0%,#121621 100%); color:#cbd5e1; border-color:rgba(255,255,255,.08)}
+		.stat{
+			display:flex;align-items:center;gap:8px;padding:12px 14px;border-radius:var(--radius-sm);
+			background:linear-gradient(180deg,#1b2030 0%,#121621 100%);border:var(--border);box-shadow:var(--shadow);
+			min-width:104px;justify-content:center;font-variant-numeric:tabular-nums;
+		}
+		.stat .dot{width:8px;height:8px;border-radius:50%}
+		.dot.time{background:#60a5fa}.dot.mines{background:#ef4444}.dot.moves{background:#34d399}
+		.main{
+			width:min(900px,94vw); display:flex; flex-direction:column; gap:16px;
+		}
+		.panel{
+			background:linear-gradient(180deg,#1b2030 0%,#121621 100%);
+			border-radius:var(--radius); border:var(--border); box-shadow:var(--shadow);
+			padding:14px;
+		}
+		.toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+		.tip{color:var(--muted);font-size:12px}
+
+		.board-frame{
+			background:linear-gradient(180deg,#1a202f 0%, #111623 100%);
+			border:var(--border-strong); border-radius:18px; box-shadow:0 14px 34px rgba(0,0,0,.40), inset 0 1px 0 rgba(255,255,255,.04);
+			padding:12px; display:flex; align-items:center; justify-content:center; min-height:260px;
+		}
+		.grid-wrap{overflow:auto; -webkit-overflow-scrolling:touch; overscroll-behavior:contain; border-radius:12px; border:var(--border); background:linear-gradient(180deg,#151a26 0%,#0f131d 100%); display:inline-block}
+		.grid{
+			display:grid; gap:var(--grid-gap);
+			padding:var(--grid-gap);
+			background:linear-gradient(180deg,#151a26 0%,#0f131d 100%);
+			touch-action:none;
+		}
+
+		.cell{
+			width:var(--cell-size); height:var(--cell-size);
+			display:flex; align-items:center; justify-content:center;
+			font-weight:900; user-select:none; -webkit-user-select:none;
+			border-radius:10px; cursor:pointer; position:relative;
+			background:linear-gradient(180deg,#222838 0%,#171c2a 100%);
+			border:1px solid rgba(255,255,255,.06);
+			box-shadow:0 2px 0 rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.05);
+			transition:transform .06s ease, background .2s, color .2s, border-color .2s, box-shadow .2s;
+			color:#e2e8f0;
+		}
+		.cell:active{transform:scale(.98)}
+		.cell.revealed{
+			background:linear-gradient(180deg,#101420 0%,#0e121b 100%);
+			border:1px solid rgba(255,255,255,.04);
+			color:#d1d5db;
+			box-shadow:inset 0 3px 8px rgba(0,0,0,.55);
+		}
+		.cell.flag::after{
+			content:'🚩'; position:absolute; font-size:18px; filter:drop-shadow(0 1px 0 rgba(0,0,0,.4));
+		}
+		.cell.mine.revealed{background:radial-gradient(circle at 50% 45%, #2b1010, #190b0b 60%); border-color:rgba(239,68,68,.35)}
+		.cell.mine.revealed::after{
+			content:'💣'; font-size:18px; position:absolute; filter:drop-shadow(0 2px 0 rgba(0,0,0,.5));
+		}
+		.num-1{color:#60a5fa}.num-2{color:#34d399}.num-3{color:#f87171}.num-4{color:#a78bfa}
+		.num-5{color:#f59e0b}.num-6{color:#22d3ee}.num-7{color:#e5e7eb}.num-8{color:#9ca3af}
+		.footer{color:var(--muted);font-size:12px; text-align:center; padding-bottom:8px}
+
+		.launcher{
+			position:fixed; inset:0; background:linear-gradient(135deg, rgba(2,6,23,.65), rgba(2,6,23,.65)), radial-gradient(900px 600px at 20% -10%, rgba(29,78,216,.35), transparent);
+			display:flex; align-items:center; justify-content:center; padding:18px; z-index:10;
+		}
+		.launcher .decor{position:absolute; inset:0; pointer-events:none}
+		.spark{
+			position:absolute; width:360px; height:360px; border-radius:50%;
+			background:radial-gradient(circle at 30% 30%, rgba(45,212,191,.25), rgba(45,212,191,0));
+			filter:blur(12px); top:-80px; left:-80px; animation:float 12s ease-in-out infinite;
+		}
+		.spark.s2{right:-120px; left:auto; top:40%; background:radial-gradient(circle at 60% 60%, rgba(99,102,241,.25), rgba(99,102,241,0)); animation-delay:-3s}
+		.spark.s3{bottom:-140px; left:10%; width:420px; height:420px; background:radial-gradient(circle at 40% 40%, rgba(245,158,11,.18), rgba(245,158,11,0)); animation:floatY 16s ease-in-out infinite}
+		.spark.s4{top:10%; left:60%; width:300px; height:300px; background:radial-gradient(circle at 50% 50%, rgba(168,85,247,.2), rgba(168,85,247,0)); animation:floatX 14s ease-in-out infinite}
+		@keyframes float{0%,100%{transform:translateY(-4px)}50%{transform:translateY(4px)}}
+		@keyframes floatX{0%,100%{transform:translateX(-10px)}50%{transform:translateX(10px)}}
+		@keyframes floatY{0%,100%{transform:translateY(-16px)}50%{transform:translateY(16px)}}
+
+		#bgStars{position:absolute; inset:0; width:100%; height:100%; display:block}
+
+		.launch-card{
+			width:min(900px,94vw);
+			background:rgba(17,23,41,.6); border:1px solid rgba(148,163,184,.18);
+			backdrop-filter:blur(14px); border-radius:22px; box-shadow:0 24px 80px rgba(0,0,0,.45);
+			display:grid; grid-template-rows:auto auto 1fr auto; padding:14px; gap:12px;
+		}
+		.launch-head{
+			display:flex; align-items:center; justify-content:space-between; gap:10px; padding:2px 6px 6px 6px;
+		}
+		.head-left{display:flex; align-items:center; gap:12px}
+		.head-logo{width:44px;height:44px;border-radius:12px;background:conic-gradient(from 180deg,#2dd4bf,#60a5fa,#a78bfa,#f59e0b,#2dd4bf); box-shadow:0 8px 20px rgba(45,212,191,.25)}
+		.head-title{font-size:22px;font-weight:900}
+		.head-sub{color:#9aa3b2; font-size:13px}
+		.head-tag{padding:8px 12px; border-radius:999px; background:linear-gradient(180deg,#182031 0%,#121621 100%); border:var(--border); font-weight:800}
+
+		.stepper{display:flex; align-items:center; gap:10px; padding:0 6px}
+		.step{display:flex; align-items:center; gap:8px; padding:8px 12px; border-radius:12px; background:linear-gradient(180deg,#1a2232 0%,#121826 100%); border:var(--border); color:#cbd5e1; font-weight:800; cursor:default}
+		.step .num{width:22px;height:22px;display:flex;align-items:center;justify-content:center;border-radius:999px;background:#0f131c;color:#93c5fd;border:1px solid rgba(148,163,184,.25); font-variant-numeric:tabular-nums}
+		.step.active{background:linear-gradient(180deg,#1b2434 0%,#141a26 100%); color:#e5e7eb; border-color:rgba(148,163,184,.28)}
+		.step.done{opacity:.9}
+
+		.launch-body{
+			display:grid; grid-template-columns:1fr 1fr; gap:12px; min-height:200px;
+		}
+		@media (max-width:760px){ .launch-body{grid-template-columns:1fr} }
+
+		.card-panel{
+			background:linear-gradient(180deg,#1b2030 0%,#121621 100%); border:var(--border); border-radius:18px; padding:14px; box-shadow:var(--shadow);
+		}
+		.card-title{margin:0 0 10px 0; font-size:14px; color:#cbd5e1}
+		.mode-pill{display:flex; gap:10px; flex-wrap:wrap}
+		.pill{
+			padding:12px 14px; border-radius:12px; background:linear-gradient(180deg,#182031 0%,#121621 100%); color:#e5e7eb; border:var(--border); cursor:pointer; font-weight:800;
+			transition:transform .06s ease, background .2s, color .2s, border-color .2s, box-shadow .2s;
+		}
+		.pill:hover{transform:translateY(-1px)}
+		.pill.active{background:linear-gradient(180deg,#14524a 0%,#0d3e37 100%); color:#eafff9; border-color:rgba(45,212,191,.5); box-shadow:0 6px 18px rgba(13,62,55,.45)}
+		.row-flex{display:flex; gap:10px; flex-wrap:wrap}
+		.select.big{padding:12px 14px; font-size:16px}
+
+		.launch-foot{
+			display:flex; gap:10px; align-items:center; justify-content:space-between; padding-top:6px;
+		}
+		.helper{color:#9aa3b2; font-size:12px}
+		.cta{display:flex; gap:10px}
+		.button.big{padding:12px 16px; font-size:16px}
+
+		@media (max-width:420px){
+			:root{--cell-size:38px; --grid-gap:3px}
+		}
+		@media (max-width:360px){
+			:root{--cell-size:34px; --grid-gap:3px}
+		}
+
+		.select,
+		.select.big,
+		#difficulty,
+		#customSize,
+		#launchDifficulty,
+		#launchCustomSize,
+		#launchCountdown {
+			color:#e5e7eb;
+			background:linear-gradient(180deg,#1b2030 0%,#121621 100%) !important;
+			border:1px solid rgba(255,255,255,.12);
+		}
+
+		.select:focus,
+		.select.big:focus,
+		#difficulty:focus,
+		#customSize:focus,
+		#launchDifficulty:focus,
+		#launchCustomSize:focus,
+		#launchCountdown:focus {
+			outline:none;
+			box-shadow:0 0 0 10px rgba(45,212,191,.12);
+			border-color:rgba(45,212,191,.45);
+		}
+
+		#difficulty option,
+		#customSize option,
+		#launchDifficulty option,
+		#launchCustomSize option,
+		#launchCountdown option {
+			background:#0f131c;
+			color:#e5e7eb;
+		}
+
+		#launchCountdownCustom {
+			color:#e5e7eb;
+			background:linear-gradient(180deg,#1b2030 0%,#121621 100%) !important;
+			border:1px solid rgba(255,255,255,.12);
+		}
+		#launchCountdownCustom::placeholder {
+			color:#9aa3b2;
+			opacity:1;
+		}
+
+
+		#launchCountdownCustom:invalid {
+			border-color:rgba(245,158,11,.6);
+			box-shadow:0 0 0 10px rgba(245,158,11,.12);
+		}
+
+
+		#launchCountdown:focus,
+		#launchCountdownCustom:focus {
+			box-shadow:0 0 0 10px rgba(245,158,11,.12);
+			border-color:rgba(245,158,11,.6);
+		}
+
+		@supports (color-scheme: dark) {
+			:root { color-scheme: dark; }
+		}
+	</style>
+</head>
+<body>
+	<header>
+		<div class="brand">
+			<div class="logo"></div>
+			<div class="title">Mine Sweeper</div>
+		</div>
+		<div class="controls">
+			<span id="modeBadge" class="badge mode">Classic Timer</span>
+			<select id="difficulty" class="select" aria-label="Difficulty">
+				<option value="beginner">Beginner 9×9 / 10 mines</option>
+				<option value="intermediate">Intermediate 16×16 / 40 mines</option>
+				<option value="expert">Expert 30×16 / 99 mines</option>
+				<option value="custom">Custom</option>
+			</select>
+			<select id="customSize" class="select" style="display:none" aria-label="Custom size">
+				<option value="8x8x8">8×8 / 8 mines</option>
+				<option value="10x12x20">10×12 / 20 mines</option>
+				<option value="12x20x36">12×20 / 36 mines</option>
+				<option value="16x30x99">16×30 / 99 mines</option>
+			</select>
+			<button id="menuBtn" class="button ghost">Back to Menu</button>
+			<button id="restartBtn" class="button primary">Restart</button>
+			<button id="pauseBtn" class="button ghost">Pause</button>
+		</div>
+	</header>
+
+	<!-- Launch selection interface -->
+	<div id="launcher" class="launcher" role="dialog" aria-modal="true" aria-label="Start game">
+		<div class="decor">
+			<canvas id="bgStars"></canvas>
+			<div class="spark"></div>
+			<div class="spark s2"></div>
+			<div class="spark s3"></div>
+			<div class="spark s4"></div>
+		</div>
+		<div class="launch-card">
+			<div class="launch-head">
+				<div class="head-left">
+					<div class="head-logo"></div>
+					<div>
+						<div class="head-title">Start a Game</div>
+						<div class="head-sub">Select difficulty → Choose mode → Ready to play</div>
+					 </div>
+				</div>
+				<div class="head-tag">First click is always safe</div>
+			</div>
+
+			<div class="stepper" aria-label="Selection steps">
+				<div id="step1" class="step active"><span class="num">1</span><span>Select Difficulty</span></div>
+				<div id="step2" class="step"><span class="num">2</span><span>Select Mode</span></div>
+				<div id="step3" class="step"><span class="num">3</span><span>Confirm & Start</span></div>
+			</div>
+
+			<div class="launch-body">
+				<div class="left-panes">
+					<div id="pane-difficulty" class="step-pane" aria-labelledby="step1">
+						<div class="card-title">Difficulty & Board</div>
+						<div class="row-flex">
+							<select id="launchDifficulty" class="select big" aria-label="Launch difficulty" style="flex:1">
+								<option value="beginner">Beginner 9×9 / 10 mines</option>
+								<option value="intermediate">Intermediate 16×16 / 40 mines</option>
+								<option value="expert">Expert 30×16 / 99 mines</option>
+								<option value="custom">Custom</option>
+							</select>
+							<select id="launchCustomSize" class="select big" aria-label="Launch custom size" style="display:none;flex:1">
+								<option value="8x8x8">8×8 / 8 mines</option>
+								<option value="10x12x20">10×12 / 20 mines</option>
+								<option value="12x20x36">12×20 / 36 mines</option>
+								<option value="16x30x99">16×30 / 99 mines</option>
+							</select>
+						</div>
+						<div class="mode-pill">
+							<!-- Placeholder, no mode controls in difficulty panel -->
+						</div>
+						<div class="row-flex" style="margin-top:12px"></div>
+					</div>
+
+					<div id="pane-mode" class="step-pane" aria-labelledby="step2" hidden>
+						<div class="card-title">Game Mode</div>
+						<div class="mode-pill">
+							<button id="modeClassic" class="pill active" data-mode="classic">Classic Timer</button>
+							<button id="modeCountdown" class="pill" data-mode="countdown">Countdown Challenge</button>
+						</div>
+						<div class="row-flex" style="margin-top:12px">
+							<select id="launchCountdown" class="select big" aria-label="Countdown duration" style="display:none;flex:1">
+								<option value="30">30 seconds</option>
+								<option value="40">40 seconds</option>
+								<option value="50">50 seconds</option>
+								<option value="custom">Custom</option>
+							</select>
+							<input id="launchCountdownCustom" class="select big" type="number" inputmode="numeric" placeholder="Custom seconds (10-3600)" min="10" max="3600" step="10" style="display:none;flex:1" />
+						</div>
+					</div>
+
+					<div id="pane-confirm" class="step-pane" aria-labelledby="step3" hidden>
+						<div class="card-title">Confirm Settings</div>
+						<div class="row-flex" id="confirmSummary" style="color:#cbd5e1"></div>
+					</div>
+				</div>
+
+				<div class="right-aside">
+					<div class="aside-card">
+						<div class="preview-title">Board Preview</div>
+						<div id="previewGrid" class="preview-grid" aria-hidden="true"></div>
+						<div id="previewMeta" class="preview-meta"></div>
+					</div>
+					<div class="aside-card">
+						<div class="preview-title">How to Play</div>
+						<div class="preview-meta">Tap to reveal; Long press to flag; Double tap numbers to clear surrounding when flags match.</div>
+					</div>
+				</div>
+			</div>
+
+			<div class="launch-foot">
+				<div class="helper">Countdown mode highlights below 10s · Zero means failure</div>
+				<div class="nav-btns">
+					<button id="btnPrev" class="button ghost big">Previous</button>
+					<button id="btnNext" class="button warn big">Next</button>
+					<button id="launchStart" class="button primary big" style="display:none">Start Game</button>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<main class="main">
+		<div class="panel toolbar">
+			<div class="stat"><span class="dot time"></span><span id="timeText">Time 000</span></div>
+			<div class="stat"><span class="dot mines"></span><span id="minesText">Remaining 000</span></div>
+			<div class="stat"><span class="dot moves"></span><span id="movesText">Moves 000</span></div>
+			<div class="tip">Controls: Tap to reveal | Long press to flag | Double tap numbers to clear</div>
+		</div>
+
+		<div class="panel board-frame">
+			<div class="grid-wrap">
+				<div id="grid" class="grid" role="grid" aria-label="Minefield"></div>
+			</div>
+		</div>
+
+		<div class="footer">Dark theme · Preserves borders/shadows/relief · Board centered in container</div>
+	</main>
+
+	<script>
+	(function(){
+		"use strict";
+
+		// Game difficulty configurations
+		const Difficulty = {
+			beginner: {w:9, h:9, m:10},
+			intermediate: {w:16, h:16, m:40},
+			expert: {w:30, h:16, m:99},
+		};
+		let width=9, height=9, mines=10;
+
+		// Game state variables
+		let board = [];
+		let firstClickDone = false;
+		let revealedCount = 0;
+		let flaggedCount = 0;
+		let timer = null, seconds=0, paused=false, finished=false;
+		let moves=0;
+
+		// Game mode variables
+		let gameMode = "classic";
+		let countdownTotal = 120;
+		let timeLeft = 120;
+
+		// DOM element references
+		const grid = document.getElementById("grid");
+		const diffSel = document.getElementById("difficulty");
+		const customSel = document.getElementById("customSize");
+		const restartBtn = document.getElementById("restartBtn");
+		const pauseBtn = document.getElementById("pauseBtn");
+		const menuBtn = document.getElementById("menuBtn");
+		const timeText = document.getElementById("timeText");
+		const minesText = document.getElementById("minesText");
+		const movesText = document.getElementById("movesText");
+		const modeBadge = document.getElementById("modeBadge");
+
+		// Launcher interface elements
+		const launcher = document.getElementById("launcher");
+		const modeClassicBtn = document.getElementById("modeClassic");
+		const modeCountdownBtn = document.getElementById("modeCountdown");
+		const launchDifficulty = document.getElementById("launchDifficulty");
+		const launchCustomSize = document.getElementById("launchCustomSize");
+		const launchCountdown = document.getElementById("launchCountdown");
+		const launchCountdownCustom = document.getElementById("launchCountdownCustom");
+		const launchStart = document.getElementById("launchStart");
+		const stepEls = [document.getElementById("step1"), document.getElementById("step2"), document.getElementById("step3")];
+		const panes = [
+			document.getElementById("pane-difficulty"),
+			document.getElementById("pane-mode"),
+			document.getElementById("pane-confirm"),
+		];
+		const btnPrev = document.getElementById("btnPrev");
+		const btnNext = document.getElementById("btnNext");
+		const previewGrid = document.getElementById("previewGrid");
+		const previewMeta = document.getElementById("previewMeta");
+		const confirmSummary = document.getElementById("confirmSummary");
+		const bgStars = document.getElementById("bgStars");
+		const ctx = bgStars && bgStars.getContext ? bgStars.getContext("2d") : null;
+		let stars = [];
+		let rafId = 0;
+		let currentStep = 0; // 0: difficulty, 1: mode, 2: confirm
+
+		// Initialize star background effect
+		function initStars(){
+			if(!ctx) return;
+			const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+			const rect = launcher.getBoundingClientRect();
+			const w = Math.max(1, Math.floor(rect.width));
+			const h = Math.max(1, Math.floor(rect.height));
+			bgStars.width = Math.floor(w * dpr);
+			bgStars.height = Math.floor(h * dpr);
+			bgStars.style.width = w + "px";
+			bgStars.style.height = h + "px";
+			ctx.setTransform(dpr,0,0,dpr,0,0);
+			const count = Math.max(24, Math.floor((w*h) / 9000));
+			stars = Array.from({length:count}, ()=>({
+				x: Math.random()*w,
+				y: Math.random()*h,
+				r: Math.random()*1.6 + 0.4,
+				vx: (Math.random()*0.2 - 0.1),
+				vy: (Math.random()*0.2 - 0.1),
+				alpha: Math.random()*0.6 + 0.4,
+				pulse: Math.random()*Math.PI*2,
+			}));
+		}
+
+		// Animate star background
+		function tickStars(){
+			if(!ctx) return;
+			const rect = launcher.getBoundingClientRect();
+			const w = Math.max(1, Math.floor(rect.width));
+			const h = Math.max(1, Math.floor(rect.height));
+			ctx.clearRect(0,0,w,h);
+			ctx.fillStyle = "#ffffff";
+			for(const s of stars){
+				s.x += s.vx; s.y += s.vy; s.pulse += 0.02;
+				if(s.x < -2) s.x = w+2; if(s.x > w+2) s.x = -2;
+				if(s.y < -2) s.y = h+2; if(s.y > h+2) s.y = -2;
+				const a = s.alpha * (0.6 + 0.4*Math.sin(s.pulse));
+				ctx.globalAlpha = a;
+				ctx.beginPath();
+				ctx.arc(s.x, s.y, s.r, 0, Math.PI*2);
+				ctx.fill();
+			}
+			ctx.globalAlpha = 1;
+			rafId = requestAnimationFrame(tickStars);
+		}
+
+		// Start/stop background animations
+		function startBg(){
+			if(!ctx || launcher.style.display === "none") return;
+			cancelAnimationFrame(rafId);
+			initStars();
+			rafId = requestAnimationFrame(tickStars);
+		}
+		function stopBg(){ cancelAnimationFrame(rafId); }
+
+		// Handle window resize for background
+		function onResize(){
+			if(launcher.style.display !== "none"){ initStars(); }
+		}
+		function onVisibility(){
+			if(document.hidden){ stopBg(); }
+			else if(launcher.style.display !== "none"){ startBg(); }
+		}
+
+		// Utility functions
+		function clamp(n, a, b){return Math.max(a, Math.min(b, n));}
+		function inBounds(x,y){return x>=0 && x<width && y>=0 && y<height;}
+		function neighbors(x,y){
+			const out=[];
+			for(let dy=-1; dy<=1; dy++){
+				for(let dx=-1; dx<=1; dx++){
+					if(dx===0 && dy===0) continue;
+					const nx=x+dx, ny=y+dy;
+					if(inBounds(nx,ny)) out.push([nx,ny]);
+				}
+			}
+			return out;
+		}
+		function fmt3(n){ return String(n).padStart(3,'0'); }
+		function stopEvent(e){ e.preventDefault(); e.stopPropagation(); }
+
+		// Update board dimensions based on difficulty selection
+		function setDifficultyFromSelect(){
+			const v = diffSel.value;
+			if(v === "custom"){
+				customSel.style.display = "";
+				const [w,h,m] = customSel.value.split('x').map(Number);
+				width=w;height=h;mines=m;
+			}else{
+				customSel.style.display = "none";
+				const d = Difficulty[v];
+				width=d.w;height=d.h;mines=d.m;
+			}
+		}
+
+		// Apply difficulty values
+		function applyDifficultyFromValues(dVal, customVal){
+			if(dVal === "custom"){
+				const [w,h,m] = customVal.split('x').map(Number);
+				width=w;height=h;mines=m;
+			}else{
+				const d = Difficulty[dVal];
+				width=d.w;height=d.h;mines=d.m;
+			}
+			diffSel.value = dVal;
+			if(dVal==="custom"){
+				customSel.style.display="";
+				customSel.value = customVal;
+			}else{
+				customSel.style.display="none";
+			}
+		}
+
+		// Initialize empty game board
+		function buildEmptyBoard(){
+			board = Array.from({length:height}, (_,y)=>
+				Array.from({length:width}, (_,x)=>({
+					x,y,isMine:false, revealed:false, flagged:false, num:0, el:null
+				}))
+			);
+			firstClickDone=false; revealedCount=0; flaggedCount=0; moves=0; finished=false;
+			seconds=0; timeLeft=countdownTotal; updateHud();
+			if(timer){ clearInterval(timer); timer=null; }
+		}
+
+		// Place mines avoiding first click position
+		function placeMinesAvoiding(x0,y0){
+			const exclude = new Set();
+			for(const [nx,ny] of [[x0,y0], ...neighbors(x0,y0)]){
+				exclude.add(ny*width+nx);
+			}
+			const total = width*height;
+			let placed = 0;
+			while(placed < mines){
+				const idx = Math.floor(Math.random()*total);
+				if(exclude.has(idx)) continue;
+				const y = Math.floor(idx/width), x = idx%width;
+				if(!board[y][x].isMine){
+					board[y][x].isMine = true;
+					placed++;
+				}
+			}
+			// Calculate adjacent mine counts
+			for(let y=0;y<height;y++){
+				for(let x=0;x<width;x++){
+					if(board[y][x].isMine){ board[y][x].num = -1; continue; }
+					let count=0;
+					for(const [nx,ny] of neighbors(x,y)){
+						if(board[ny][nx].isMine) count++;
+					}
+					board[y][x].num = count;
+				}
+			}
+		}
+
+		// Ensure game timer is running
+		function ensureTimerRunning(){
+			if(timer || finished || paused) return;
+			timer = setInterval(()=>{
+				if(!paused && !finished){
+					if(gameMode === "classic"){
+						seconds++;
+					}else{
+						timeLeft = Math.max(0, timeLeft-1);
+						if(timeLeft === 0){
+							updateHud();
+							lose(true);
+							return;
+						}
+					}
+					updateHud();
+				}
+			}, 1000);
+		}
+
+		// Update game status display
+		function updateHud(){
+			if(gameMode === "classic"){
+				timeText.textContent = "Time " + fmt3(seconds);
+				modeBadge.textContent = "Classic Timer";
+			}else{
+				timeText.textContent = "Countdown " + fmt3(timeLeft);
+				modeBadge.textContent = "Countdown";
+			}
+			minesText.textContent = "Remaining " + fmt3(Math.max(mines - flaggedCount, 0));
+			movesText.textContent = "Moves " + fmt3(moves);
+
+			// Highlight countdown when low
+			const statEl = timeText.parentElement;
+			if(gameMode==="countdown" && timeLeft <= 10 && !finished){
+				statEl.style.background = "linear-gradient(180deg,#2c2112 0%,#21190e 100%)";
+				statEl.style.borderColor = "rgba(245,158,11,.45)";
+				statEl.style.color = "#ffd9a5";
+			}else{
+				statEl.style.background = "";
+				statEl.style.borderColor = "";
+				statEl.style.color = "";
+			}
+		}
+
+		// Update launcher step display
+		function updateStepper(){
+			for(let i=0;i<stepEls.length;i++){
+				stepEls[i].classList.toggle("active", i===currentStep);
+				stepEls[i].classList.toggle("done", i<currentStep);
+				panes[i].hidden = i!==currentStep;
+			}
+			btnPrev.style.display = currentStep===0 ? "none" : "";
+			btnNext.style.display = currentStep===2 ? "none" : "";
+			launchStart.style.display = currentStep===2 ? "" : "none";
+			updatePreview();
+			updateConfirm();
+		}
+
+		// Render board preview in launcher
+		function renderPreviewMini(widthCells, heightCells){
+			const maxCells = 6; // Fixed 6x6 preview grid
+			previewGrid.innerHTML = "";
+			const cols = maxCells;
+			const rows = maxCells;
+			previewGrid.style.gridTemplateColumns = `repeat(${cols}, 12px)`;
+			const total = cols*rows;
+			for(let i=0;i<total;i++){
+				const cell = document.createElement("div");
+				cell.className = "preview-cell";
+				previewGrid.appendChild(cell);
+			}
+		}
+
+		// Update preview panel
+		function updatePreview(){
+			renderPreviewMini(width, height);
+			previewMeta.textContent = `Current: ${width}×${height} · Mines ${mines}${gameMode==="countdown"?` · Countdown ${countdownTotal}s`:""}`;
+		}
+
+		// Update confirmation panel
+		function updateConfirm(){
+			if(!confirmSummary) return;
+			confirmSummary.textContent = `Mode: ${gameMode==="classic"?"Classic Timer":"Countdown"} | Board: ${width}×${height} | Mines: ${mines}${gameMode==="countdown"?` | Duration: ${countdownTotal}s`:""}`;
+		}
+
+		// Build game board UI
+		function buildGrid(){
+			grid.style.gridTemplateColumns = `repeat(${width}, var(--cell-size))`;
+			grid.style.gridTemplateRows = `repeat(${height}, var(--cell-size))`;
+			grid.innerHTML = "";
+			const frag = document.createDocumentFragment();
+			for(let y=0;y<height;y++){
+				for(let x=0;x<width;x++){
+					const d = board[y][x];
+					const cell = document.createElement("button");
+					cell.className = "cell";
+					cell.setAttribute("role","gridcell");
+					cell.setAttribute("aria-label","Unrevealed");
+					cell.dataset.x = x;
+					cell.dataset.y = y;
+					attachCellEvents(cell);
+					d.el = cell;
+					frag.appendChild(cell);
+				}
+			}
+			grid.appendChild(frag);
+		}
+
+		// Update cell appearance based on state
+		function renderCell(d){
+			const el = d.el;
+			el.classList.toggle("revealed", d.revealed);
+			el.classList.toggle("flag", d.flagged);
+			el.classList.toggle("mine", d.isMine);
+			el.textContent = "";
+			if(d.revealed && !d.isMine && d.num>0){
+				el.textContent = d.num;
+				el.classList.add("num-"+d.num);
+			}else{
+				for(let i=1;i<=8;i++) el.classList.remove("num-"+i);
+			}
+			if(d.revealed){
+				el.setAttribute("aria-label", d.isMine ? "Mine" : (d.num>0? d.num+"": "Empty"));
+			}else{
+				el.setAttribute("aria-label", d.flagged ? "Flagged" : "Unrevealed");
+			}
+		}
+
+		// Update all cells
+		function renderAll(){
+			for(let y=0;y<height;y++){
+				for(let x=0;x<width;x++){
+					renderCell(board[y][x]);
+				}
+			}
+		}
+
+		// Handle cell interaction events
+		let longPressTimer = null;
+		let pressStart = 0;
+		const LONG_PRESS_MS = 300;
+
+		function attachCellEvents(cell){
+			cell.addEventListener("touchstart", e=>{stopEvent(e);}, {passive:false});
+			cell.addEventListener("pointerdown", onPointerDown);
+			cell.addEventListener("pointerup", onPointerUp);
+			cell.addEventListener("pointercancel", onPointerCancel);
+			cell.addEventListener("contextmenu", e=>{e.preventDefault();});
+			cell.addEventListener("dblclick", onDblClick);
+		}
+
+		// Get cell data from event target
+		function getCellFromEventTarget(t){
+			const x = Number(t.dataset.x), y = Number(t.dataset.y);
+			if(!inBounds(x,y)) return null;
+			return board[y][x];
+		}
+
+		// Handle pointer down events
+		function onPointerDown(e){
+			if(finished) return;
+			const d = getCellFromEventTarget(e.currentTarget);
+			if(!d) return;
+			pressStart = Date.now();
+			longPressTimer = setTimeout(()=>{
+				if(!d.revealed) toggleFlag(d.x,d.y);
+			}, LONG_PRESS_MS);
+		}
+
+		// Handle pointer up events
+		function onPointerUp(e){
+			if(finished) return;
+			const d = getCellFromEventTarget(e.currentTarget);
+			if(!d) return;
+			const duration = Date.now()-pressStart;
+			if(longPressTimer){ clearTimeout(longPressTimer); longPressTimer=null; }
+			if(duration < LONG_PRESS_MS){
+				if(!d.revealed){
+					reveal(d.x,d.y);
+				}else if(d.revealed && d.num>0){
+					chordOpen(d.x,d.y);
+				}
+			}
+		}
+		function onPointerCancel(){
+			if(longPressTimer){ clearTimeout(longPressTimer); longPressTimer=null; }
+		}
+		function onDblClick(e){
+			const d = getCellFromEventTarget(e.currentTarget);
+			if(!d) return;
+			if(d.revealed && d.num>0) chordOpen(d.x,d.y);
+		}
+
+		// Toggle flag on cell
+		function toggleFlag(x,y){
+			if(finished || paused) return;
+			const d = board[y][x];
+			if(d.revealed) return;
+			d.flagged = !d.flagged;
+			flaggedCount += d.flagged ? 1 : -1;
+			flaggedCount = clamp(flaggedCount, 0, mines);
+			moves++;
+			updateHud();
+			renderCell(d);
+		}
+
+		// Reveal cell content
+		function reveal(x,y){
+			if(finished || paused) return;
+			const d = board[y][x];
+			if(d.flagged || d.revealed) return;
+
+			// First click safety: place mines after first click
+			if(!firstClickDone){
+				placeMinesAvoiding(x,y);
+				firstClickDone = true;
+				ensureTimerRunning();
+			}
+
+			d.revealed = true;
+			moves++;
+			renderCell(d);
+			if(d.isMine){ lose(false); return; }
+			revealedCount++;
+
+			// Auto-reveal empty cells
+			if(d.num===0){
+				const stack = [[x,y]];
+				const seen = new Set([y*width+x]);
+				while(stack.length){
+					const [cx,cy] = stack.pop();
+					for(const [nx,ny] of neighbors(cx,cy)){
+						const c = board[ny][nx];
+						if(c.revealed || c.flagged) continue;
+						c.revealed = true;
+						renderCell(c);
+						revealedCount++;
+						if(!c.isMine && c.num===0){
+							const key = ny*width+nx;
+							if(!seen.has(key)){ seen.add(key); stack.push([nx,ny]); }
+						}
+					}
+				}
+			}
+			checkWin();
+		}
+
+		// Auto-reveal surrounding cells when flags match number
+		function chordOpen(x,y){
+			const d = board[y][x];
+			if(!d.revealed || d.num<=0) return;
+			const ns = neighbors(x,y);
+			let cnt=0;
+			for(const [nx,ny] of ns){ if(board[ny][nx].flagged) cnt++; }
+			if(cnt !== d.num) return;
+			for(const [nx,ny] of ns){
+				const c = board[ny][nx];
+				if(!c.flagged && !c.revealed){
+					reveal(nx,ny);
+					if(finished) break;
+				}
+			}
+		}
+
+		// Show all mines when game ends
+		function revealAllMines(){
+			for(let y=0;y<height;y++){
+				for(let x=0;x<width;x++){
+					const d = board[y][x];
+					if(d.isMine){ d.revealed = true; renderCell(d); }
+				}
+			}
+		}
+
+		// Check win condition
+		function checkWin(){
+			const total = width*height;
+			if(revealedCount === total - mines){
+				win();
+			}else{
+				updateHud();
+			}
+		}
+
+		// Handle win state
+		function win(){
+			finished = true;
+			updateHud();
+			if(timer){ clearInterval(timer); timer=null; }
+			setTimeout(()=>alert(`Victory! ${gameMode==="classic" ? "Time "+seconds+"s" : "Remaining "+timeLeft+"s"} · Moves ${moves}`), 10);
+		}
+
+		// Handle loss state
+		function lose(timeout=false){
+			finished = true;
+			revealAllMines();
+			updateHud();
+			if(timer){ clearInterval(timer); timer=null; }
+			setTimeout(()=>alert(timeout ? `Time's up! Challenge failed · Moves ${moves}` : `Hit a mine! Time ${seconds}s · Moves ${moves}`), 10);
+		}
+
+		// Toggle pause state
+		function pauseToggle(){
+			if(finished || !firstClickDone) return;
+			paused = !paused;
+			pauseBtn.textContent = paused ? "Resume" : "Pause";
+		}
+
+		// Restart game
+		function restart(){
+			setDifficultyFromSelect();
+			buildEmptyBoard();
+			buildGrid();
+			renderAll();
+			pauseBtn.textContent = "Pause";
+			paused = false;
+			updateHud();
+		}
+
+		// Start game from launcher
+		function startFromLauncher(){
+			const dVal = launchDifficulty.value;
+			const customVal = (launchCustomSize.value || "8x8x8");
+			applyDifficultyFromValues(dVal, customVal);
+
+			if(modeClassicBtn.classList.contains("active")){
+				gameMode = "classic";
+			}else{
+				gameMode = "countdown";
+			}
+			let chosen = launchCountdown.value || "30";
+			if(chosen === "custom"){
+				let v = Number(launchCountdownCustom.value);
+				if(!Number.isFinite(v)) v = 60;
+				v = Math.max(10, Math.min(3600, Math.round(v)));
+				countdownTotal = v;
+			}else{
+				countdownTotal = Number(chosen);
+			}
+			timeLeft = countdownTotal;
+
+			modeBadge.textContent = gameMode==="classic" ? "Classic Timer" : "Countdown";
+
+			buildEmptyBoard();
+			buildGrid();
+			renderAll();
+			pauseBtn.textContent = "Pause";
+			paused = false;
+			updateHud();
+
+			launcher.style.display = "none";
+			stopBg();
+			window.scrollTo(0,0);
+		}
+
+		// Return to main menu
+		function backToMenu(){
+			if(timer){ clearInterval(timer); timer=null; }
+			launcher.style.display = "";
+			startBg();
+		}
+
+		// Event listeners
+		diffSel.addEventListener("change", restart);
+		customSel.addEventListener("change", ()=>{
+			if(diffSel.value==="custom"){
+				const [w,h,m] = customSel.value.split('x').map(Number);
+				width=w;height=h;mines=m;
+				restart();
+			}
+		});
+		restartBtn.addEventListener("click", restart);
+		pauseBtn.addEventListener("click", pauseToggle);
+		menuBtn.addEventListener("click", backToMenu);
+
+		// Launcher mode selection
+		modeClassicBtn.addEventListener("click", ()=>{
+			modeClassicBtn.classList.add("active");
+			modeCountdownBtn.classList.remove("active");
+			launchCountdown.style.display="none";
+			launchCountdownCustom.style.display="none";
+			gameMode = "classic";
+			updatePreview();
+		});
+		modeCountdownBtn.addEventListener("click", ()=>{
+			modeCountdownBtn.classList.add("active");
+			modeClassicBtn.classList.remove("active");
+			launchCountdown.style.display="";
+			launchCountdownCustom.style.display = (launchCountdown.value === "custom") ? "" : "none";
+			gameMode = "countdown";
+			updatePreview();
+		});
+
+		// Launcher difficulty selection
+		launchDifficulty.addEventListener("change", ()=>{
+			if(launchDifficulty.value==="custom"){
+				launchCustomSize.style.display="";
+			}else{
+				launchCustomSize.style.display="none";
+			}
+			const dVal = launchDifficulty.value;
+			const customVal = (launchCustomSize.value || "8x8x8");
+			applyDifficultyFromValues(dVal, customVal);
+			updatePreview();
+		});
+
+		// Launcher countdown settings
+		launchCountdown.addEventListener("change", ()=>{
+			launchCountdownCustom.style.display = (launchCountdown.value === "custom") ? "" : "none";
+			if(launchCountdown.value!=="custom"){
+				countdownTotal = Number(launchCountdown.value||30);
+				updatePreview();
+			}
+		});
+
+		launchCustomSize.addEventListener("change", ()=>{
+			if(launchDifficulty.value==="custom"){
+				const dVal = launchDifficulty.value;
+				const customVal = (launchCustomSize.value || "8x8x8");
+				applyDifficultyFromValues(dVal, customVal);
+				updatePreview();
+			}
+		});
+
+		launchCountdownCustom.addEventListener("input", ()=>{
+			if(launchCountdown.value==="custom"){
+				let v = Number(launchCountdownCustom.value);
+				if(Number.isFinite(v)){
+					v = Math.max(10, Math.min(3600, Math.round(v)));
+					countdownTotal = v;
+					updatePreview();
+				}
+			}
+		});
+
+		// Launcher navigation
+		btnPrev.addEventListener("click", ()=>{
+			currentStep = Math.max(0, currentStep-1);
+			updateStepper();
+		});
+		btnNext.addEventListener("click", ()=>{
+			if(currentStep===0){
+				currentStep = 1;
+			}else if(currentStep===1){
+				currentStep = 2;
+			}
+			updateStepper();
+		});
+		launchStart.addEventListener("click", startFromLauncher);
+
+		// Prevent scrolling during touch interactions
+		grid.addEventListener("touchmove", e=>{
+			if(e.touches.length===1) stopEvent(e);
+		}, {passive:false});
+
+		// Initialize
+		updatePreview();
+		updateStepper();
+		launcher.style.display = "";
+		startBg();
+		window.addEventListener("resize", onResize);
+		document.addEventListener("visibilitychange", onVisibility);
+	})();
+	</script>
+</body>
+</html>
